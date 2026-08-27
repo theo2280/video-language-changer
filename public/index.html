@@ -602,7 +602,7 @@ initPiSdk(currentNetwork).then(async () => {
   try {
     const s = JSON.parse(localStorage.getItem("vlc-user") || "null");
     if (s && s.username && s.network === currentNetwork) {
-      document.getElementById("connectBtn").textContent = "@" + s.username;
+      document.getElementById("connectBtn").textContent = "π @" + s.username;
     }
   } catch (_) {}
 
