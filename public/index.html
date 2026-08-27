@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Language Changer - Pi Network</title>
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+  <style>
+:root{--bg:#070a16;--card:rgba(18,24,45,.9);--border:rgba(148,163,184,.17);--primary:#8b5cf6;--cyan:#22d3ee;--green:#10b981;--gold:#fbbf24;--text:#f8fafc;--muted:#94a3b8;--icon-bg:rgba(255,255,255,.08);--icon-hover:rgba(255,255,255,.14);--grad1:rgba(124,58,237,.38);--grad2:rgba(6,182,212,.12)}
+[data-theme=light]{--bg:#f1f5f9;--card:rgba(255,255,255,.92);--border:rgba(15,23,42,.12);--text:#0f172a;--muted:#64748b;--icon-bg:rgba(15,23,42,.06);--icon-hover:rgba(15,23,42,.1);--grad1:rgba(139,92,246,.18);--grad2:rgba(6,182,212,.1)}
+*{box-sizing:border-box}body{min-height:100vh;margin:0;color:var(--text);font-family:Inter,system-ui,sans-serif;background:radial-gradient(circle at 50% -15%,var(--grad1),transparent 35%),radial-gradient(circle at 0 45%,var(--grad2),transparent 32%),var(--bg);transition:background .35s,color .25s}
+button,select,input{font:inherit}button{cursor:pointer}
+.container{width:100%;max-width:510px;margin:auto;padding:15px}
+.top-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:15px;flex-wrap:wrap}
+.network-switch{display:flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.06)}
+.net-btn,.connect-btn,.buy-btn,.action-btn,.download-btn,.refund-btn{border:0;color:#fff;font-weight:800}
+.net-btn{padding:7px 10px;border-radius:8px;color:var(--muted);background:transparent;font-size:.7rem}
+.net-btn.active{color:#fff;background:var(--green)}
+.connect-btn{padding:9px 11px;border-radius:11px;background:linear-gradient(135deg,var(--primary),#4c1d95);font-size:.7rem;box-shadow:0 7px 20px rgba(124,58,237,.35)}
+.top-left,.top-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.icon-btn{display:flex;align-items:center;justify-content:center;gap:4px;min-width:36px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:10px;color:var(--text);background:var(--icon-bg);font-size:.78rem;font-weight:700}
+.icon-btn svg{width:18px;height:18px}.lang-label{font-size:.72rem}
+.network-badge{display:inline-flex;padding:4px 8px;border-radius:8px;font-size:.65rem;font-weight:800}
+.network-badge.is-mainnet{color:#fff;background:linear-gradient(135deg,#059669,#10b981)}
+.network-badge.is-testnet{color:#0f172a;background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.card{margin-bottom:15px;padding:17px;border:1px solid var(--border);border-radius:20px;background:var(--card);box-shadow:0 17px 40px rgba(0,0,0,.25);backdrop-filter:blur(16px)}
+.header-card{text-align:center;overflow:visible}
+.logo-container{width:240px;height:220px;margin:5px auto 0;filter:drop-shadow(0 12px 28px rgba(34,211,238,.25));overflow:visible}
+.logo-svg{width:100%;height:100%;overflow:visible}
+.envelope-flap{transform-box:fill-box;transform-origin:50% 100%;animation:openFlap 3.6s ease-in-out infinite}
+@keyframes openFlap{0%,10%{transform:scaleY(1)}28%,72%{transform:scaleY(-1.05)}90%,100%{transform:scaleY(1)}}
+.envelope-body{animation:envGlow 3.6s ease-in-out infinite}
+@keyframes envGlow{0%,12%,88%,100%{filter:drop-shadow(0 0 3px rgba(103,232,249,.25))}40%,60%{filter:drop-shadow(0 0 14px rgba(139,92,246,.5))}}
+.burst-icon{transform-box:fill-box;transform-origin:center;opacity:0;animation:burstUp 3.6s ease-out infinite}
+.burst-icon:nth-child(1){animation-delay:.65s}.burst-icon:nth-child(2){animation-delay:.72s}.burst-icon:nth-child(3){animation-delay:.8s}.burst-icon:nth-child(4){animation-delay:.88s}.burst-icon:nth-child(5){animation-delay:.96s}.burst-icon:nth-child(6){animation-delay:1.04s}.burst-icon:nth-child(7){animation-delay:1.12s}.burst-icon:nth-child(8){animation-delay:1.2s}.burst-icon:nth-child(9){animation-delay:1.28s}.burst-icon:nth-child(10){animation-delay:1.36s}
+@keyframes burstUp{0%{opacity:0;transform:translate(0,0) scale(.3)}18%{opacity:1;transform:translate(var(--dx),calc(var(--dy)*.4)) scale(1.08)}55%{opacity:1;transform:translate(var(--dx),var(--dy)) scale(1)}85%,100%{opacity:0;transform:translate(calc(var(--dx)*1.12),calc(var(--dy)*1.2)) scale(.65)}}
+.app-title{margin:0;color:transparent;background:linear-gradient(90deg,#67e8f9,#c084fc,#f9a8d4);-webkit-background-clip:text;background-clip:text;font-size:1.6rem;font-weight:900}
+.app-subtitle{margin:5px 0 0;color:var(--muted);font-size:.75rem}
+h3{margin:0 0 10px;font-size:1rem}h4{margin:0;font-size:.86rem}
+.description{margin:0 0 13px;color:var(--muted);font-size:.75rem;line-height:1.5}
+.drop-zone{display:block;padding:22px 14px;border:2px dashed rgba(34,211,238,.5);border-radius:15px;text-align:center;background:rgba(34,211,238,.045);cursor:pointer}
+.drop-zone:hover{background:rgba(34,211,238,.1)}.drop-icon{margin-bottom:6px;font-size:2.2rem}
+.file-info,.detection-result{margin-top:8px;color:var(--cyan);font-size:.72rem}
+.detection-result{padding:9px;border-radius:9px;background:rgba(34,211,238,.07)}
+.lang-select{width:100%;margin:9px 0 4px;padding:11px;outline:none;border:1px solid rgba(255,255,255,.18);border-radius:9px;color:#fff;background:rgba(15,23,42,.92);font-size:.82rem}
+[data-theme=light] .lang-select{color:var(--text);background:#fff;border-color:var(--border)}
+.action-btn,.download-btn,.refund-btn{display:flex;align-items:center;justify-content:center;width:100%;gap:8px;margin-top:9px;padding:12px;border-radius:11px;font-size:.8rem}
+.btn-change{background:linear-gradient(135deg,#0284c7,#2563eb)}.btn-dub{background:linear-gradient(135deg,#0d9488,#059669)}.btn-sub{background:linear-gradient(135deg,#7c3aed,#c026d3)}
+.download-btn{background:linear-gradient(135deg,#d97706,#b45309)}.download-btn:disabled,.refund-btn:disabled{opacity:.45;cursor:not-allowed}
+.download-btn span,.action-btn span,.refund-btn span,.buy-btn span,.connect-btn span{pointer-events:none}
+.refund-btn{background:linear-gradient(135deg,#dc2626,#b91c1c)}
+.plan-card{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:rgba(15,23,42,.65)}
+.plan-card.popular{border-color:var(--gold);background:rgba(251,191,36,.07)}
+.plan-price{margin-top:4px;color:var(--gold);font-size:.72rem;font-weight:800;line-height:1.5}
+.buy-btn{padding:8px 11px;border-radius:9px;background:var(--primary);font-size:.7rem;white-space:nowrap}
+.sub-status,.refund-box{margin-top:12px;padding:10px 12px;border-radius:11px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--muted);font-size:.72rem;text-align:center}
+.sub-status.active-sub{border-color:rgba(16,185,129,.45);background:rgba(16,185,129,.1);color:var(--green);font-weight:700}
+.refund-box{text-align:left}.refund-box p{margin:0 0 8px;line-height:1.45}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.stat{padding:9px 4px;border-radius:10px;color:var(--muted);background:rgba(255,255,255,.04);text-align:center;font-size:.66rem}
+.stat-value{display:block;margin-top:3px;color:var(--cyan);font-size:.95rem;font-weight:900}
+.status{min-height:18px;margin-top:9px;color:var(--muted);font-size:.72rem;text-align:center}
+  </style>
+</head>
+<body>
+<main class="container">
+  <div class="top-bar">
+    <div class="top-left">
+      <button class="icon-btn" id="langBtn" type="button" title="Langue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8h10M9 4v4M7.5 8c0 4 2.5 7 6.5 8"/><path d="M14 18l2.5-6 2.5 6M15.2 15.5h2.6"/></svg>
+        <span class="lang-label" id="langLabel">FR</span>
+      </button>
+      <button class="icon-btn" id="themeBtn" type="button" title="Thème">
+        <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z"/></svg>
+        <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+    </div>
+    <div class="top-actions">
+      <div class="network-switch">
+        <button class="net-btn" id="btnTestnet" type="button">Testnet</button>
+        <button class="net-btn active" id="btnMainnet" type="button">Mainnet</button>
+      </div>
+      <span class="network-badge is-mainnet" id="networkBadge">Mainnet</span>
+      <button class="connect-btn" id="connectBtn" type="button">π CONNEXION</button>
+    </div>
+  </div>
+
+  <section class="card header-card">
+    <div class="logo-container">
+      <svg class="logo-svg" viewBox="0 0 280 280" role="img">
+        <defs>
+          <linearGradient id="envBody" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#67e8f9"/><stop offset="45%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#4c1d95"/></linearGradient>
+          <linearGradient id="envFlap" x1="0%" y1="100%" x2="0%" y2="0%"><stop offset="0%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient>
+          <linearGradient id="envInner" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1e1b4b"/><stop offset="100%" stop-color="#312e81"/></linearGradient>
+          <radialGradient id="burstGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#c084fc" stop-opacity=".6"/><stop offset="100%" stop-color="#c084fc" stop-opacity="0"/></radialGradient>
+        </defs>
+        <circle cx="140" cy="155" r="52" fill="url(#burstGlow)" opacity=".65"><animate attributeName="r" values="30;60;30" dur="3.6s" repeatCount="indefinite"/><animate attributeName="opacity" values=".2;.7;.2" dur="3.6s" repeatCount="indefinite"/></circle>
+        <g class="burst-icons">
+          <g class="burst-icon" style="--dx:-58px;--dy:-100px" transform="translate(140 155)"><circle r="13" fill="#ff0000"/><path d="M-5-4L6.5 0L-5 4Z" fill="#fff"/></g>
+          <g class="burst-icon" style="--dx:55px;--dy:-105px" transform="translate(140 155)"><circle r="13" fill="#080808"/><path d="M-2-8V2a4 4 0 1 0 4-4v-3c3 3 5 4 8 4v-4c-4 0-6-2-8-5z" fill="#25f4ee"/></g>
+          <g class="burst-icon" style="--dx:-80px;--dy:-48px" transform="translate(140 155)"><circle r="13" fill="#e1306c"/><rect x="-6" y="-6" width="12" height="12" rx="3.5" fill="none" stroke="#fff" stroke-width="1.8"/><circle r="2" fill="#fff"/></g>
+          <g class="burst-icon" style="--dx:82px;--dy:-40px" transform="translate(140 155)"><circle r="13" fill="#1877f2"/><text x="-4" y="6" fill="#fff" font-size="16" font-family="Arial" font-weight="bold">f</text></g>
+          <g class="burst-icon" style="--dx:-40px;--dy:-120px" transform="translate(140 155)"><circle r="13" fill="#0a66c2"/><text x="-7.5" y="5" fill="#fff" font-size="11" font-family="Arial" font-weight="bold">in</text></g>
+          <g class="burst-icon" style="--dx:36px;--dy:-122px" transform="translate(140 155)"><circle r="13" fill="#fffc00"/><path d="M-5-2a5 5 0 0 1 10 0v4c2 1 3 2 3 3H-8c0-1 1-2 3-3z" fill="#111"/></g>
+          <g class="burst-icon" style="--dx:-95px;--dy:-78px" transform="translate(140 155)"><circle r="13" fill="#111827"/><text x="-7" y="5" fill="#fff" font-size="13" font-family="Arial" font-weight="bold">X</text></g>
+          <g class="burst-icon" style="--dx:96px;--dy:-70px" transform="translate(140 155)"><circle r="13" fill="#25d366"/><path d="M-5 7l2-4a7 7 0 1 1 3 2z" fill="none" stroke="#fff" stroke-width="2"/></g>
+          <g class="burst-icon" style="--dx:-22px;--dy:-135px" transform="translate(140 155)"><circle r="13" fill="#229ed9"/><path d="M-7-5L8-7L3 7L0 2L-6 6L-2 0Z" fill="#fff"/></g>
+          <g class="burst-icon" style="--dx:20px;--dy:-138px" transform="translate(140 155)"><circle r="13" fill="#9146ff"/><path d="M-6-5v10h4V0h4v5h4v-10z" fill="#fff"/></g>
+        </g>
+        <g class="envelope-body">
+          <rect x="70" y="118" width="140" height="97" rx="6" fill="url(#envBody)" stroke="#c4b5fd" stroke-width="2"/>
+          <path d="M70 118 L140 175 L210 118 Z" fill="url(#envInner)" opacity=".85"/>
+          <path d="M70 118 L140 175 L210 118" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.8"/>
+        </g>
+        <g class="envelope-flap">
+          <path d="M70 118 L140 48 L210 118 Z" fill="url(#envFlap)" stroke="#e0e7ff" stroke-width="2"/>
+          <circle cx="140" cy="105" r="11" fill="#fbbf24" stroke="#f59e0b" stroke-width="1.5"/>
+          <circle cx="140" cy="105" r="5.5" fill="#fef3c7"/>
+        </g>
+      </svg>
+    </div>
+    <h1 class="app-title">Video Language Changer</h1>
+    <p class="app-subtitle">theofintech.pi · par theo2280 · Token utilitaire VlC</p>
+  </section>
+
+  <section class="card">
+    <h3 id="i18n-changeLang">🎬 Changer la langue d’une vidéo</h3>
+    <p class="description" id="i18n-desc">Importez une vidéo, détectez la langue, puis traduisez, doublez ou générez les sous-titres.</p>
+    <label class="drop-zone" for="videoInput">
+      <div class="drop-icon">🎞️</div>
+      <strong id="i18n-dropStrong">Déposer ou sélectionner une vidéo</strong>
+      <div class="description" style="margin:5px 0 0" id="i18n-dropHint">MP4, AVI, MKV · 2 Go max</div>
+      <div class="file-info" id="fileInfo"></div>
+    </label>
+    <input id="videoInput" type="file" accept="video/*" hidden>
+    <div class="detection-result" id="detectionResult"><span id="i18n-detection">🔎 Sélectionnez une vidéo pour la détection IA.</span></div>
+    <h4 style="margin-top:15px" id="i18n-outLang">🌐 Langue de sortie</h4>
+    <select class="lang-select" id="langSelect"></select>
+    <button class="action-btn btn-change" id="translateBtn" type="button"><span id="i18n-translate">🤖 TRADUIRE LA VIDÉO</span></button>
+    <button class="action-btn btn-dub" id="dubBtn" type="button"><span id="i18n-dub">🎙️ DOUBLAGE VOCAL</span></button>
+    <button class="action-btn btn-sub" id="subtitleBtn" type="button"><span id="i18n-sub">📝 GÉNÉRER LES SOUS-TITRES</span></button>
+    <button class="download-btn" id="downloadBtn" type="button" disabled><span id="i18n-download">⬇️ TÉLÉCHARGER</span></button>
+    <div class="status" id="actionStatus"></div>
+  </section>
+
+  <section class="card">
+    <h3 id="i18n-plans">📊 Abonnements Pi</h3>
+    <div class="plan-card"><div><h4 id="i18n-daily">Journalier</h4><div class="plan-price">π 0,0000612245 · ≈ 1,934694 USDC · ≈ 1 200 FCFA</div></div>
+      <button class="buy-btn" type="button" onclick="payerEnPi(0.0000612245,'Abonnement 1 Jour')"><span id="i18n-buy1">Acheter 1 Jour</span></button></div>
+    <div class="plan-card popular"><div><h4 id="i18n-weekly">🌟 Populaire — Hebdomadaire</h4><div class="plan-price">π 0,0003673469 · ≈ 11,608163 USDC · ≈ 7 200 FCFA</div></div>
+      <button class="buy-btn" type="button" onclick="payerEnPi(0.0003673469,'Abonnement 7 Jours')"><span id="i18n-buy7">Acheter 7 Jours</span></button></div>
+    <div class="plan-card"><div><h4 id="i18n-monthly">📅 Mensuel</h4><div class="plan-price">π 0,0014693878 · ≈ 46,432653 USDC · ≈ 28 800 FCFA</div></div>
+      <button class="buy-btn" type="button" onclick="payerEnPi(0.0014693878,'Abonnement 30 Jours')"><span id="i18n-buy30">Acheter 30 Jours</span></button></div>
+    <div class="sub-status" id="subStatus">Aucun abonnement actif</div>
+  </section>
+
+  <section class="card">
+    <h3 id="i18n-refundTitle">💸 Remboursement / litige</h3>
+    <div class="refund-box">
+      <p id="i18n-refundDesc">En cas d’échec de traduction ou de litige, demandez un remboursement en π (A2U via le serveur). Abonnement ou paiement récent requis.</p>
+      <button class="refund-btn" id="refundBtn" type="button" disabled><span id="i18n-refundBtn">Demander un remboursement</span></button>
+      <div class="status" id="refundStatus"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3 id="i18n-stats">📈 Statistiques</h3>
+    <div class="stats">
+      <div class="stat"><span id="i18n-translations">Traductions</span><span class="stat-value" id="translations">0</span></div>
+      <div class="stat"><span id="i18n-videos">Vidéos</span><span class="stat-value" id="videos">0</span></div>
+      <div class="stat"><span id="i18n-tokens">VlC gagnés</span><span class="stat-value" id="statTokens">0</span></div>
+    </div>
+  </section>
+</main>
+<script>
+
+let currentUser=null,accessToken=null,selectedVideo=null,translatedFileUrl=null;
+let currentNetwork=localStorage.getItem("vlc-network")||"mainnet";
+let subscription=JSON.parse(localStorage.getItem("vlc-subscription")||"null");
+let lastPayment=JSON.parse(localStorage.getItem("vlc-last-payment")||"null");
+let lastJobFailed=false,piReady=false,uiLang=localStorage.getItem("vlc-ui-lang")||"fr";
+
+const languages=[
+["fr","🇫🇷 Français"],["en","🇺🇸 English"],["es","🇪🇸 Español"],["pt","🇵🇹 Português"],["de","🇩🇪 Deutsch"],
+["it","🇮🇹 Italiano"],["nl","🇳🇱 Nederlands"],["pl","🇵🇱 Polski"],["ru","🇷🇺 Русский"],["uk","🇺🇦 Українська"],
+["tr","🇹🇷 Türkçe"],["ar","🇸🇦 العربية"],["he","🇮🇱 עברית"],["fa","🇮🇷 فارسی"],["hi","🇮🇳 हिन्दी"],
+["bn","🇧🇩 বাংলা"],["ur","🇵🇰 اردو"],["pa","🇮🇳 ਪੰਜਾਬੀ"],["gu","🇮🇳 ગુજરાતી"],["mr","🇮🇳 मराठी"],
+["ta","🇮🇳 தமிழ்"],["te","🇮🇳 తెలుగు"],["kn","🇮🇳 ಕನ್ನಡ"],["ml","🇮🇳 മലയാളം"],["si","🇱🇰 සිංහල"],
+["zh","🇨🇳 中文"],["zh-TW","🇹🇼 中文 (繁體)"],["ja","🇯🇵 日本語"],["ko","🇰🇷 한국어"],["vi","🇻🇳 Tiếng Việt"],
+["th","🇹🇭 ไทย"],["id","🇮🇩 Bahasa Indonesia"],["ms","🇲🇾 Bahasa Melayu"],["tl","🇵🇭 Tagalog"],["my","🇲🇲 မြန်မာ"],
+["km","🇰🇭 ខ្មែរ"],["lo","🇱🇦 ລາວ"],["ne","🇳🇵 नेपाली"],["sw","🇰🇪 Kiswahili"],["am","🇪🇹 አማርኛ"],
+["ha","🇳🇬 Hausa"],["yo","🇳🇬 Yorùbá"],["ig","🇳🇬 Igbo"],["zu","🇿🇦 isiZulu"],["xh","🇿🇦 isiXhosa"],
+["af","🇿🇦 Afrikaans"],["st","🇱🇸 Sesotho"],["sn","🇿🇼 Shona"],["rw","🇷🇼 Kinyarwanda"],["so","🇸🇴 Soomaali"],
+["mg","🇲🇬 Malagasy"],["cs","🇨🇿 Čeština"],["sk","🇸🇰 Slovenčina"],["hu","🇭🇺 Magyar"],["ro","🇷🇴 Română"],
+["bg","🇧🇬 Български"],["sr","🇷🇸 Српски"],["hr","🇭🇷 Hrvatski"],["bs","🇧🇦 Bosanski"],["sl","🇸🇮 Slovenščina"],
+["mk","🇲🇰 Македонски"],["sq","🇦🇱 Shqip"],["el","🇬🇷 Ελληνικά"],["sv","🇸🇪 Svenska"],["da","🇩🇰 Dansk"],
+["no","🇳🇴 Norsk"],["fi","🇫🇮 Suomi"],["is","🇮🇸 Íslenska"],["et","🇪🇪 Eesti"],["lv","🇱🇻 Latviešu"],
+["lt","🇱🇹 Lietuvių"],["ga","🇮🇪 Gaeilge"],["cy","🏴󠁧󠁢󠁷󠁬󠁳󠁿 Cymraeg"],["mt","🇲🇹 Malti"],["eu","🇪🇸 Euskara"],
+["ca","🇪🇸 Català"],["gl","🇪🇸 Galego"],["be","🇧🇾 Беларуская"],["kk","🇰🇿 Қазақша"],["uz","🇺🇿 Oʻzbekcha"],
+["ky","🇰🇬 Кыргызча"],["tg","🇹🇯 Тоҷикӣ"],["tk","🇹🇲 Türkmençe"],["az","🇦🇿 Azərbaycan"],["hy","🇦🇲 Հայերեն"],
+["ka","🇬🇪 ქართული"],["mn","🇲🇳 Монгол"],["ps","🇦🇫 پښتو"],["ku","Kurdî"],["yi","ייִדיש"],
+["ht","🇭🇹 Kreyòl ayisyen"],["lb","🇱🇺 Lëtzebuergesch"],["eo","Esperanto"],["la","Latina"],["sm","Samoan"],
+["ny","Chichewa"],["su","Basa Sunda"],["jw","Basa Jawa"],["ceb","Cebuano"],["haw","ʻŌlelo Hawaiʻi"]
+];
+const langSelect=document.getElementById("langSelect");
+languages.forEach(([c,n])=>{const o=document.createElement("option");o.value=c;o.textContent=n;if(c==="fr")o.selected=true;langSelect.appendChild(o);});
+
+function isPiBrowser(){return typeof Pi!=="undefined";}
+
+async function initPiSdk(network){
+  try{
+    if(!isPiBrowser()){piReady=false;updateNetworkUI();return false;}
+    const Pi = window.Pi;
+    await Pi.init({ version: "2.0", sandbox: network === "testnet" });
+    piReady=true;
+    currentNetwork=network;
+    localStorage.setItem("vlc-network",network);
+    updateNetworkUI();
+    return true;
+  }catch(e){
+    console.error(e);
+    piReady=false;
+    updateNetworkUI();
+    return false;
+  }
+}
+
+function updateNetworkUI(){
+  document.getElementById("btnTestnet").classList.toggle("active",currentNetwork==="testnet");
+  document.getElementById("btnMainnet").classList.toggle("active",currentNetwork==="mainnet");
+  const b=document.getElementById("networkBadge");
+  b.textContent=currentNetwork==="testnet"?"Testnet":"Mainnet";
+  b.className="network-badge "+(currentNetwork==="testnet"?"is-testnet":"is-mainnet");
+  refreshSubscriptionUI();updateRefundButton();
+}
+
+function refreshSubscriptionUI(){
+  const el=document.getElementById("subStatus");
+  if(subscription&&subscription.expiresAt&&Date.now()<subscription.expiresAt){
+    const d=Math.ceil((subscription.expiresAt-Date.now())/86400000);
+    el.textContent="✅ Privilèges actifs — "+(subscription.plan||"Abonnement")+" · "+d+" j restant(s) · "+(subscription.network||"");
+    el.classList.add("active-sub");
+  }else{
+    subscription=null;
+    localStorage.removeItem("vlc-subscription");
+    el.textContent="Aucun abonnement actif — achetez un plan pour traduire / doubler / sous-titrer";
+    el.classList.remove("active-sub");
+  }
+}
+
+function saveSubscription(plan,network,paymentId,txid,amount){
+  const days=plan.includes("30")?30:plan.includes("7")?7:1;
+  subscription={plan,network,amount,paymentId,txid,activatedAt:Date.now(),expiresAt:Date.now()+days*86400000};
+  localStorage.setItem("vlc-subscription",JSON.stringify(subscription));
+  lastPayment={paymentId,txid,amount:Number(amount)||0,plan,network,at:Date.now(),refunded:false};
+  localStorage.setItem("vlc-last-payment",JSON.stringify(lastPayment));
+  const t=document.getElementById("statTokens");t.textContent=String(Number(t.textContent||0)+(days===30?30:days===7?10:3));
+  refreshSubscriptionUI();updateRefundButton();
+}
+
+function updateRefundButton(){
+  const eligible=currentUser&&lastPayment&&!lastPayment.refunded&&(lastJobFailed||(subscription&&Date.now()<subscription.expiresAt));
+  document.getElementById("refundBtn").disabled=!eligible;
+}
+
+async function onIncompletePaymentFound(payment){
+  try{
+    console.log("Paiement incomplet trouvé :", payment);
+    const paymentId=payment.identifier,txid=payment.transaction&&payment.transaction.txid;
+    if(!paymentId)return;
+    await fetch("/api/pi/complete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({paymentId,txid,network:currentNetwork})});
+  }catch(e){console.warn(e);}
+}
+
+async function authPi(){
+  if(!isPiBrowser()){
+    console.warn("Pi Browser requis pour l'authentification.");
+    return null;
+  }
+  if(!piReady && !(await initPiSdk(currentNetwork))){
+    console.warn("SDK Pi indisponible.");
+    return null;
+  }
+  try{
+    const Pi = window.Pi;
+    const scopes = ["username", "payments", "wallet_address"];
+
+    const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
+    console.log("Connecté avec succès :", auth);
+
+    currentUser = auth.user || auth;
+    accessToken = auth.accessToken || null;
+
+    if(!currentUser || !currentUser.username){
+      throw new Error("Auth invalide");
+    }
+
+    // Envoi UID + accessToken au backend
+    try {
+      await fetch("/api/authenticate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: currentUser, accessToken: accessToken })
+      });
+    } catch (e) {
+      console.warn("Envoi /api/authenticate échoué:", e);
+    }
+
+    // Vérification token
+    try {
+      if (accessToken) {
+        await fetch("/api/pi/me", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accessToken: accessToken, network: currentNetwork })
+        });
+      }
+    } catch (_) {}
+
+    localStorage.setItem("vlc-user", JSON.stringify({
+      username: currentUser.username,
+      uid: currentUser.uid || null,
+      network: currentNetwork
+    }));
+
+    document.getElementById("connectBtn").textContent = "π @" + currentUser.username;
+    updateRefundButton();
+    return currentUser;
+  } catch (err) {
+    console.error("Erreur d'authentification :", err);
+    return null;
+  }
+}
+
+document.getElementById("connectBtn").onclick = async () => {
+  const user = await authPi();
+  if(user){
+    alert("Connexion Pi réussie !");
+  } else if(!isPiBrowser()){
+    alert("Ouvrez l'application dans le Pi Browser pour une connexion sécurisée.");
+  } else {
+    alert("Erreur de connexion Pi. Autorisez l'application.");
+  }
+};
+
+async function switchNetwork(network){
+  if(network===currentNetwork&&piReady){updateNetworkUI();return;}
+  currentUser=null;accessToken=null;localStorage.removeItem("vlc-user");
+  document.getElementById("connectBtn").textContent=(uiStrings[uiLang]&&uiStrings[uiLang].connect)||"π CONNEXION";
+  if(!(await initPiSdk(network))){alert("Impossible d'activer "+network+". Pi Browser requis.");return;}
+  alert(network==="testnet"?"Mode Testnet activé.":"Mode Mainnet activé (vrais π).");
+  if(isPiBrowser() && piReady){
+    await authPi();
+  }
+}
+
+document.getElementById("btnTestnet").onclick=()=>switchNetwork("testnet");
+document.getElementById("btnMainnet").onclick=()=>switchNetwork("mainnet");
+
+async function payerEnPi(amount,plan){
+  if(!isPiBrowser()){alert("Abonnements Pi : Pi Browser uniquement.");return;}
+  if(!piReady)await initPiSdk(currentNetwork);
+  if(!currentUser&&!(await authPi()))return;
+  const orderId=(crypto.randomUUID&&crypto.randomUUID())||(Date.now()+"-"+Math.random().toString(36).slice(2));
+  try{
+    await Pi.createPayment({
+      amount:Number(amount),memo:plan+" · "+currentNetwork,
+      metadata:{product:"Video Language Changer",token:"VlC",plan,network:currentNetwork,username:currentUser.username,uid:currentUser.uid||null,orderId}
+    },{
+      onReadyForServerApproval:async paymentId=>{
+        try{await fetch("/api/pi/approve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({paymentId,accessToken,network:currentNetwork,orderId,plan,amount})});}catch(e){console.warn(e);}
+      },
+      onReadyForServerCompletion:async (paymentId,txid)=>{
+        let serverOk=false;
+        try{const r=await fetch("/api/pi/complete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({paymentId,txid,plan,network:currentNetwork,accessToken,orderId})});serverOk=r.ok;}catch(e){console.warn(e);}
+        if(txid){saveSubscription(plan,currentNetwork,paymentId,txid,amount);alert("✅ "+plan+" activé sur "+currentNetwork+(serverOk?"":"\n(serveur en attente)"));}
+        else alert("Paiement incomplet.");
+      },
+      onCancel:()=>alert("Paiement annulé."),
+      onError:(err)=>{console.error(err);alert("Paiement échoué ("+currentNetwork+").");}
+    });
+  }catch(e){console.error(e);alert("Erreur paiement Pi.");}
+}
+
+async function demanderRemboursement(){
+  if(!currentUser&&!(await authPi()))return;
+  if(!lastPayment||lastPayment.refunded){alert("Aucun paiement éligible.");return;}
+  const reason=lastJobFailed?"echec_traduction":"litige";
+  if(!confirm("Confirmer le remboursement en π ?\nMotif : "+reason+"\nRéseau : "+currentNetwork+"\nMontant : π "+(lastPayment.amount||"—")))return;
+  const st=document.getElementById("refundStatus");st.textContent="⏳ Demande en cours…";
+  try{
+    const r=await fetch("/api/pi/refund",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      accessToken,network:currentNetwork,username:currentUser.username,uid:currentUser.uid||null,
+      paymentId:lastPayment.paymentId,txid:lastPayment.txid,amount:lastPayment.amount,plan:lastPayment.plan,reason
+    })});
+    if(!r.ok)throw new Error("refused");
+    const data=await r.json().catch(()=>({}));
+    lastPayment.refunded=true;localStorage.setItem("vlc-last-payment",JSON.stringify(lastPayment));
+    subscription=null;localStorage.removeItem("vlc-subscription");refreshSubscriptionUI();updateRefundButton();
+    st.textContent="✅ Remboursement initié"+(data.txid?" · "+data.txid:"")+" (A2U).";
+    alert("Remboursement demandé. Vérifiez votre portefeuille Pi.");
+  }catch(e){
+    console.error(e);
+    st.textContent="⚠️ Backend /api/pi/refund requis (paiement A2U App→User sur "+currentNetwork+").";
+    alert("Le remboursement nécessite le backend Pi (A2U) : POST /api/pi/refund");
+  }
+}
+document.getElementById("refundBtn").onclick=demanderRemboursement;
+
+document.getElementById("videoInput").onchange=async e=>{
+  selectedVideo=e.target.files[0];
+  if(!selectedVideo)return;
+
+  // Reset download précédent
+  const downloadBtn=document.getElementById("downloadBtn");
+  downloadBtn.disabled=true;
+  if(translatedFileUrl){URL.revokeObjectURL(translatedFileUrl);translatedFileUrl=null;}
+  document.getElementById("actionStatus").textContent="";
+
+  const sizeMo=(selectedVideo.size/1024/1024).toFixed(1);
+  document.getElementById("fileInfo").textContent=selectedVideo.name+" · "+sizeMo+" Mo";
+  document.getElementById("detectionResult").textContent="⏳ Détection IA de la langue…";
+
+  try{
+    const fd=new FormData();
+    fd.append("video",selectedVideo);
+    if(currentUser){
+      fd.append("username",currentUser.username);
+      fd.append("network",currentNetwork);
+    }
+    const r=await fetch("/api/detect-language",{method:"POST",body:fd});
+    if(!r.ok)throw new Error();
+    const j=await r.json();
+    document.getElementById("detectionResult").textContent="✅ Langue détectée : "+(j.language||"?")+" · confiance : "+(j.confidence||"—");
+    // Pré-sélectionner la langue de sortie si possible
+    if(j.language && langSelect){
+      // ne change pas automatiquement la cible, l'utilisateur choisit
+    }
+    if(!hasActiveSubscription()){
+      document.getElementById("actionStatus").textContent="ℹ️ Abonnement requis pour traduire / doubler / sous-titrer.";
+    }
+  }catch(_){
+    document.getElementById("detectionResult").textContent="⚠️ Détection backend indisponible — vous pouvez quand même choisir la langue de sortie.";
+  }
+};
+
+function hasActiveSubscription(){
+  return !!(subscription && subscription.expiresAt && Date.now() < subscription.expiresAt);
+}
+
+function requirePrivileges(){
+  // Paiements réels : connexion Pi + abonnement actif obligatoires
+  if(!currentUser){
+    alert("Connectez-vous avec π CONNEXION pour accéder aux privilèges de traduction.");
+    return false;
+  }
+  if(!hasActiveSubscription()){
+    alert("Abonnement Pi requis.\n\nAchetez un plan Journalier, Hebdomadaire ou Mensuel pour traduire, doubler ou générer des sous-titres.");
+    // Scroll vers les abonnements
+    const plans = document.getElementById("i18n-plans");
+    if(plans) plans.scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
+  }
+  return true;
+}
+
+async function processVideo(endpoint, message, jobType){
+  if(!selectedVideo){
+    alert("Sélectionnez une vidéo.");
+    return;
+  }
+  if(!requirePrivileges()) return;
+
+  const targetLang = langSelect.value;
+  const fd = new FormData();
+  fd.append("video", selectedVideo);
+  fd.append("targetLanguage", targetLang);
+  fd.append("username", currentUser.username);
+  fd.append("uid", currentUser.uid || "");
+  fd.append("network", currentNetwork);
+  fd.append("jobType", jobType || "translate");
+  if(accessToken) fd.append("accessToken", accessToken);
+  if(subscription){
+    fd.append("plan", subscription.plan || "");
+    fd.append("paymentId", subscription.paymentId || "");
+  }
+
+  const statusEl = document.getElementById("actionStatus");
+  const downloadBtn = document.getElementById("downloadBtn");
+  downloadBtn.disabled = true;
+  statusEl.textContent = message;
+  lastJobFailed = false;
+  updateRefundButton();
+
+  // Désactiver temporairement les boutons pendant le traitement
+  const actionBtns = [document.getElementById("translateBtn"), document.getElementById("dubBtn"), document.getElementById("subtitleBtn")];
+  actionBtns.forEach(b => { if(b) b.disabled = true; });
+
+  try{
+    const r = await fetch(endpoint, { method: "POST", body: fd });
+    if(!r.ok){
+      const errText = await r.text().catch(()=> "");
+      throw new Error(errText || ("HTTP " + r.status));
+    }
+
+    const contentType = r.headers.get("content-type") || "";
+    // Si le backend renvoie du JSON d'erreur malgré 200
+    if(contentType.includes("application/json")){
+      const j = await r.json();
+      if(j.error) throw new Error(j.error);
+      // sous-titres texte éventuels
+      if(j.subtitles || j.srt || j.vtt){
+        const text = j.subtitles || j.srt || j.vtt;
+        const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+        if(translatedFileUrl) URL.revokeObjectURL(translatedFileUrl);
+        translatedFileUrl = URL.createObjectURL(blob);
+        downloadBtn.disabled = false;
+        downloadBtn.dataset.url = translatedFileUrl;
+        downloadBtn.dataset.filename = "sous-titres-" + targetLang + ".srt";
+        statusEl.textContent = "✅ Sous-titres prêts.";
+      } else {
+        throw new Error("Réponse backend invalide");
+      }
+    } else {
+      const blob = await r.blob();
+      if(translatedFileUrl) URL.revokeObjectURL(translatedFileUrl);
+      translatedFileUrl = URL.createObjectURL(blob);
+      downloadBtn.disabled = false;
+      downloadBtn.dataset.url = translatedFileUrl;
+      const ext = jobType === "subtitles" ? "srt" : "mp4";
+      downloadBtn.dataset.filename = "video-" + (jobType || "traduite") + "-" + targetLang + "." + ext;
+      statusEl.textContent = "✅ Fichier prêt — téléchargez-le.";
+    }
+
+    document.getElementById("videos").textContent = Number(document.getElementById("videos").textContent) + 1;
+    document.getElementById("translations").textContent = Number(document.getElementById("translations").textContent) + 1;
+
+    // Bonus VlC pour usage
+    const t = document.getElementById("statTokens");
+    t.textContent = String(Number(t.textContent || 0) + 1);
+  }catch(e){
+    console.error("processVideo error:", e);
+    lastJobFailed = true;
+    updateRefundButton();
+    statusEl.textContent = "⚠️ Échec du traitement. Vous pouvez demander un remboursement.";
+    alert("Échec : " + (e.message || "erreur serveur") + "\n\nSi le problème persiste, utilisez Remboursement / litige.");
+  } finally {
+    actionBtns.forEach(b => { if(b) b.disabled = false; });
+  }
+}
+
+document.getElementById("translateBtn").onclick = () => processVideo("/api/translate-video", "⏳ Traduction en cours…", "translate");
+document.getElementById("dubBtn").onclick = () => processVideo("/api/dub-video", "⏳ Doublage vocal en cours…", "dub");
+document.getElementById("subtitleBtn").onclick = () => processVideo("/api/create-subtitles", "⏳ Génération des sous-titres…", "subtitles");
+document.getElementById("downloadBtn").onclick = function (e) {
+  // currentTarget = le bouton (listener), pas le <span> enfant cliqué
+  const btn = e.currentTarget || document.getElementById("downloadBtn");
+  const url =
+    (btn && btn.dataset && btn.dataset.url) ||
+    (btn && btn.getAttribute && btn.getAttribute("data-url")) ||
+    translatedFileUrl;
+  const filename =
+    (btn && btn.dataset && btn.dataset.filename) ||
+    (btn && btn.getAttribute && btn.getAttribute("data-filename")) ||
+    "video.mp4";
+
+  if (!url) {
+    console.warn("downloadBtn: dataset.url undefined");
+    return;
+  }
+  if (!requirePrivileges()) return;
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+
+const themeBtn=document.getElementById("themeBtn"),iconMoon=document.getElementById("iconMoon"),iconSun=document.getElementById("iconSun");
+function applyTheme(theme){document.documentElement.setAttribute("data-theme",theme);const L=theme==="light";iconMoon.style.display=L?"none":"block";iconSun.style.display=L?"block":"none";localStorage.setItem("vlc-theme",theme);}
+applyTheme(localStorage.getItem("vlc-theme")||"dark");
+themeBtn.onclick=()=>{const c=document.documentElement.getAttribute("data-theme")||"dark";applyTheme(c==="dark"?"light":"dark");};
+
+const uiStrings={
+ fr:{connect:"π CONNEXION",changeLang:"🎬 Changer la langue d’une vidéo",desc:"Importez une vidéo, détectez la langue, puis traduisez, doublez ou générez les sous-titres.",dropStrong:"Déposer ou sélectionner une vidéo",dropHint:"MP4, AVI, MKV · 2 Go max",detection:"🔎 Sélectionnez une vidéo pour la détection IA.",outLang:"🌐 Langue de sortie",translate:"🤖 TRADUIRE LA VIDÉO",dub:"🎙️ DOUBLAGE VOCAL",sub:"📝 GÉNÉRER LES SOUS-TITRES",download:"⬇️ TÉLÉCHARGER",plans:"📊 Abonnements Pi",daily:"Journalier",weekly:"🌟 Populaire — Hebdomadaire",monthly:"📅 Mensuel",buy1:"Acheter 1 Jour",buy7:"Acheter 7 Jours",buy30:"Acheter 30 Jours",stats:"📈 Statistiques",translations:"Traductions",videos:"Vidéos",tokens:"VlC gagnés",refundTitle:"💸 Remboursement / litige",refundDesc:"En cas d’échec de traduction ou de litige, demandez un remboursement en π (A2U via le serveur). Abonnement ou paiement récent requis.",refundBtn:"Demander un remboursement"},
+ en:{connect:"π CONNECT",changeLang:"🎬 Change a video’s language",desc:"Import a video, detect language, then translate, dub or generate subtitles.",dropStrong:"Drop or select a video",dropHint:"MP4, AVI, MKV · 2 GB max",detection:"🔎 Select a video for AI detection.",outLang:"🌐 Output language",translate:"🤖 TRANSLATE VIDEO",dub:"🎙️ VOICE DUBBING",sub:"📝 GENERATE SUBTITLES",download:"⬇️ DOWNLOAD",plans:"📊 Pi Subscriptions",daily:"Daily",weekly:"🌟 Popular — Weekly",monthly:"📅 Monthly",buy1:"Buy 1 Day",buy7:"Buy 7 Days",buy30:"Buy 30 Days",stats:"📈 Stats",translations:"Translations",videos:"Videos",tokens:"VlC earned",refundTitle:"💸 Refund / dispute",refundDesc:"If translation fails or there is a dispute, request a π refund (A2U via server). Active subscription or recent payment required.",refundBtn:"Request a refund"}
+};
+function applyUiLang(lang){
+  uiLang=lang;localStorage.setItem("vlc-ui-lang",lang);document.documentElement.lang=lang;
+  document.getElementById("langLabel").textContent=lang.toUpperCase();
+  const t=uiStrings[lang];const c=document.getElementById("connectBtn");if(c&&!currentUser)c.textContent=t.connect;
+  const map={"i18n-changeLang":t.changeLang,"i18n-desc":t.desc,"i18n-dropStrong":t.dropStrong,"i18n-dropHint":t.dropHint,"i18n-detection":t.detection,"i18n-outLang":t.outLang,"i18n-translate":t.translate,"i18n-dub":t.dub,"i18n-sub":t.sub,"i18n-download":t.download,"i18n-plans":t.plans,"i18n-daily":t.daily,"i18n-weekly":t.weekly,"i18n-monthly":t.monthly,"i18n-buy1":t.buy1,"i18n-buy7":t.buy7,"i18n-buy30":t.buy30,"i18n-stats":t.stats,"i18n-translations":t.translations,"i18n-videos":t.videos,"i18n-tokens":t.tokens,"i18n-refundTitle":t.refundTitle,"i18n-refundDesc":t.refundDesc,"i18n-refundBtn":t.refundBtn};
+  Object.entries(map).forEach(([id,text])=>{const el=document.getElementById(id);if(el)el.textContent=text;});
+}
+document.getElementById("langBtn").onclick=()=>applyUiLang(uiLang==="fr"?"en":"fr");
+applyUiLang(uiLang);
+
+initPiSdk(currentNetwork).then(async () => {
+  try {
+    const s = JSON.parse(localStorage.getItem("vlc-user") || "null");
+    if (s && s.username && s.network === currentNetwork) {
+      document.getElementById("connectBtn").textContent = "π @" + s.username;
+    }
+  } catch (_) {}
+
+  refreshSubscriptionUI();
+  updateRefundButton();
+
+  // Authentification automatique dès l'ouverture (Pi Browser uniquement)
+  if (isPiBrowser() && piReady) {
+    console.log("Tentative d'authentification Pi au démarrage…");
+    await authPi();
+  }
+});
+
+</script>
+</body>
+</html>
