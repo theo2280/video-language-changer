@@ -2,17 +2,17 @@
  * Video Language Changer — Backend Node.js (Pi Network)
  *
  * Endpoints :
- *  POST /api/authenticate   — log / récupère l'UID du pionnier (debug)
- *  POST /api/pi/me          — vérifie le accessToken du pionnier
- *  POST /api/pi/approve     — approuve un paiement U2A
- *  POST /api/pi/complete    — finalise un paiement U2A
- *  POST /api/pi/refund      — remboursement A2U (App → User)
- *  POST /api/detect-language, /api/translate-video, /api/dub-video, /api/create-subtitles
+ * POST /api/authenticate   — log / récupère l'UID du pionnier (debug)
+ * POST /api/pi/me          — vérifie le accessToken du pionnier
+ * POST /api/pi/approve     — approuve un paiement U2A
+ * POST /api/pi/complete    — finalise un paiement U2A
+ * POST /api/pi/refund      — remboursement A2U (App → User)
+ * POST /api/detect-language, /api/translate-video, /api/dub-video, /api/create-subtitles
  *
  * Keep-Alive & Validation :
- *  GET  /ping               — pour UptimeRobot (anti-sleep Render Free)
- *  GET  /api/health         — health check détaillé
- *  GET  /validation-key.txt — clés de validation Testnet + Mainnet
+ * GET  /ping               — pour UptimeRobot (anti-sleep Render Free)
+ * GET  /api/health         — health check détaillé
+ * GET  /validation-key.txt — clé de validation selon Testnet / Mainnet
  *
  * Variables d'environnement : voir .env.example
  */
@@ -36,6 +36,9 @@ const PI_API_KEY_TESTNET = process.env.PI_API_KEY_TESTNET || "";
 const APP_WALLET_SEED = process.env.APP_WALLET_SEED || "";
 const ALLOW_DEV_FALLBACK = process.env.ALLOW_DEV_FALLBACK === "true";
 
+// Réseau par défaut (testnet | mainnet)
+const DEFAULT_NETWORK = (process.env.PI_NETWORK || "testnet").toLowerCase();
+
 /** Mémoire locale (remplacer par une vraie DB en production) */
 const store = {
   users: new Map(),
@@ -46,21 +49,6 @@ const store = {
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
-
-/* ───────────── Routes prioritaires (avant express.static) ───────────── */
-
-// Route dynamique pour répondre aux deux clés de validation (Testnet + Mainnet)
-app.get("/validation-key.txt", (req, res) => {
-  const keyTestnet = "2e13a98c5e0b7462e8d0d306accab3ed3f0c3d3b0568b023d69ae68c9e8fb8b2d8f59dc5e7336e3c101769c94ecd652a44a769f179f9a856a9f8731e9dcb0f8a";
-  const keyMainnet = "3eccce22c5ac56f8e3f1f41795ae376f90bf502532f3683745a723886d037012cffd9de96aad9dfadc394ce6b068695b9ab35b907df6305ebdc4223539f6c4f8";
-
-  res.setHeader("Content-Type", "text/plain");
-  res.send(`${keyTestnet}\n${keyMainnet}`);
-});
-
-app.get("/ping", (req, res) => {
-  res.status(200).send("OK");
-});
 
 // Fichiers statiques
 app.use(express.static(PUBLIC_DIR));
@@ -78,7 +66,33 @@ function hasApiKey(network) {
   return Boolean(apiKeyFor(network));
 }
 
-// piFetch avec template string propre
+/**
+ * Détermine le réseau (testnet / mainnet) à partir de :
+ * 1. Variable d'environnement PI_NETWORK
+ * 2. Query ?network=testnet|mainnet
+ * 3. Hostname (contient "testnet" ou "sandbox")
+ */
+function detectNetwork(req) {
+  // 1. Query string prioritaire
+  const q = (req.query.network || "").toLowerCase();
+  if (q === "testnet" || q === "mainnet") return q;
+
+  // 2. Hostname
+  const host = (req.hostname || req.headers.host || "").toLowerCase();
+  if (host.includes("testnet") || host.includes("sandbox") || host.includes("test")) {
+    return "testnet";
+  }
+
+  // 3. Variable d'environnement
+  if (DEFAULT_NETWORK === "mainnet" || DEFAULT_NETWORK === "testnet") {
+    return DEFAULT_NETWORK;
+  }
+
+  // Fallback
+  return "testnet";
+}
+
+// piFetch corrigé
 async function piFetch(pathname, { method = "GET", network = "mainnet", accessToken, body } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (accessToken) {
@@ -135,6 +149,31 @@ function saveSubscription(uid, plan, network, paymentId) {
   store.subscriptions.set(uid, sub);
   return sub;
 }
+
+/* ───────────── Keep-Alive pour UptimeRobot / Health Check ───────────── */
+
+app.get("/ping", (req, res) => {
+  res.status(200).send("OK");
+});
+
+/**
+ * Route de validation Pi Network
+ * Affiche UNIQUEMENT la clé correspondant au réseau détecté
+ * (Testnet ou Mainnet)
+ */
+app.get("/validation-key.txt", (req, res) => {
+  const keyTestnet =
+    "2e13a98c5e0b7462e8d0d306accab3ed3f0c3d3b0568b023d69ae68c9e8fb8b2d8f59dc5e7336e3c101769c94ecd652a44a769f179f9a856a9f8731e9dcb0f8a";
+  const keyMainnet =
+    "3eccce22c5ac56f8e3f1f41795ae376f90bf502532f3683745a723886d037012cffd9de96aad9dfadc394ce6b068695b9ab35b907df6305ebdc4223539f6c4f8";
+
+  const network = detectNetwork(req);
+  const key = network === "mainnet" ? keyMainnet : keyTestnet;
+
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send(key);
+});
 
 /* ───────────── Debug / récupération UID ───────────── */
 
@@ -476,9 +515,11 @@ app.post("/api/create-subtitles", upload.single("video"), videoStub);
 
 /* ───────────── Santé détaillée ───────────── */
 
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", (req, res) => {
+  const network = detectNetwork(req);
   res.json({
     ok: true,
+    network,
     mainnetKey: Boolean(PI_API_KEY_MAINNET),
     testnetKey: Boolean(PI_API_KEY_TESTNET),
     allowDevFallback: ALLOW_DEV_FALLBACK,
@@ -521,10 +562,11 @@ app.use((err, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log(`Video Language Changer backend : http://localhost:${PORT}`);
-  console.log(`  Public dir  : ${PUBLIC_DIR}`);
-  console.log(`  Mainnet key : ${PI_API_KEY_MAINNET ? "OK" : "MANQUANTE"}`);
-  console.log(`  Testnet key : ${PI_API_KEY_TESTNET ? "OK" : "MANQUANTE"}`);
-  console.log(`  Dev fallback: ${ALLOW_DEV_FALLBACK}`);
-  console.log(`  Keep-Alive  : GET /ping`);
-  console.log(`  Validation  : GET /validation-key.txt`);
+  console.log(`  Public dir     : ${PUBLIC_DIR}`);
+  console.log(`  Default network: ${DEFAULT_NETWORK}`);
+  console.log(`  Mainnet key    : ${PI_API_KEY_MAINNET ? "OK" : "MANQUANTE"}`);
+  console.log(`  Testnet key    : ${PI_API_KEY_TESTNET ? "OK" : "MANQUANTE"}`);
+  console.log(`  Dev fallback   : ${ALLOW_DEV_FALLBACK}`);
+  console.log(`  Keep-Alive     : GET /ping`);
+  console.log(`  Validation     : GET /validation-key.txt`);
 });
