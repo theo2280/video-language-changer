@@ -1,12 +1,3 @@
-/**
- * Video Language Changer — Backend Node.js (Pi Network)
- *
- * Keep-Alive & Validation :
- * GET  /ping               — UptimeRobot
- * GET  /api/health         — health check
- * GET  /validation-key.txt — les DEUX clés (Testnet + Mainnet) → 10/10 sur les deux
- */
-
 require("dotenv").config();
 const path = require("path");
 const fs = require("fs");
@@ -36,22 +27,19 @@ const store = {
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
 
-/* ───────────── Validation (les DEUX clés) — AVANT express.static ───────────── */
+/* ───────────── Route Validation (Testnet + Mainnet) ───────────── */
 app.get("/validation-key.txt", (req, res) => {
-  const keyTestnet =
-    "2e13a98c5e0b7462e8d0d306accab3ed3f0c3d3b0568b023d69ae68c9e8fb8b2d8f59dc5e7336e3c101769c94ecd652a44a769f179f9a856a9f8731e9dcb0f8a";
-  const keyMainnet =
-    "3eccce22c5ac56f8e3f1f41795ae376f90bf502532f3683745a723886d037012cffd9de96aad9dfadc394ce6b068695b9ab35b907df6305ebdc4223539f6c4f8";
+  const keyTestnet = "2e13a98c5e0b7462e8d0d306accab3ed3f0c3d3b0568b023d69ae68c9e8fb8b2d8f59dc5e7336e3c101769c94ecd652a44a769f179f9a856a9f8731e9dcb0f8a";
+  const keyMainnet = "3eccce22c5ac56f8e3f1f41795ae376f90bf502532f3683745a723886d037012cffd9de96aad9dfadc394ce6b068695b9ab35b907df6305ebdc4223539f6c4f8";
 
-  // Les deux clés, une par ligne → Testnet ET Mainnet à 10/10
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
-  res.status(200).send(`${keyTestnet}\n${keyMainnet}\n`);
+  res.status(200).send(keyTestnet + "\n" + keyMainnet + "\n");
 });
 
-/* ───────────── Fichiers statiques (APRÈS la route validation) ───────────── */
+/* ───────────── Fichiers statiques ───────────── */
 app.use(express.static(PUBLIC_DIR));
 
 const upload = multer({
