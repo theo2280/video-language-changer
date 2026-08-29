@@ -47,6 +47,21 @@ const store = {
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
 
+/* ───────────── Routes prioritaires (avant express.static) ───────────── */
+
+// Route dynamique pour répondre aux deux clés de validation (Testnet + Mainnet)
+app.get("/validation-key.txt", (req, res) => {
+  const keyTestnet = "2e13a98c5e0b7462e8d0d306accab3ed3f0c3d3b0568b023d69ae68c9e8fb8b2d8f59dc5e7336e3c101769c94ecd652a44a769f179f9a856a9f8731e9dcb0f8a";
+  const keyMainnet = "3eccce22c5ac56f8e3f1f41795ae376f90bf502532f3683745a723886d037012cffd9de96aad9dfadc394ce6b068695b9ab35b907df6305ebdc4223539f6c4f8";
+
+  res.setHeader("Content-Type", "text/plain");
+  res.send(`${keyTestnet}\n${keyMainnet}`);
+});
+
+app.get("/ping", (req, res) => {
+  res.status(200).send("OK");
+});
+
 // Fichiers statiques
 app.use(express.static(PUBLIC_DIR));
 
@@ -120,22 +135,6 @@ function saveSubscription(uid, plan, network, paymentId) {
   store.subscriptions.set(uid, sub);
   return sub;
 }
-
-/* ───────────── Keep-Alive pour UptimeRobot / Health Check ───────────── */
-
-app.get("/ping", (req, res) => {
-  res.status(200).send("OK");
-});
-
-// Route dynamique pour répondre aux deux clés de validation (Testnet + Mainnet)
-app.get("/validation-key.txt", (req, res) => {
-  const keyTestnet = "2e13a98c5e0b7462e8d0d306accab3ed3f0c3d3b0568b023d69ae68c9e8fb8b2d8f59dc5e7336e3c101769c94ecd652a44a769f179f9a856a9f8731e9dcb0f8a";
-  const keyMainnet = "3eccce22c5ac56f8e3f1f41795ae376f90bf502532f3683745a723886d037012cffd9de96aad9dfadc394ce6b068695b9ab35b907df6305ebdc4223539f6c4f8";
-
-  // Renvoie les deux clés séparées par un saut de ligne
-  res.setHeader("Content-Type", "text/plain");
-  res.send(`${keyTestnet}\n${keyMainnet}`);
-});
 
 /* ───────────── Debug / récupération UID ───────────── */
 
