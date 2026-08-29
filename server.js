@@ -9,9 +9,10 @@
  *  POST /api/pi/refund      — remboursement A2U (App → User)
  *  POST /api/detect-language, /api/translate-video, /api/dub-video, /api/create-subtitles
  *
- * Keep-Alive :
+ * Keep-Alive & Validation :
  *  GET  /ping               — pour UptimeRobot (anti-sleep Render Free)
  *  GET  /api/health         — health check détaillé
+ *  GET  /validation-key.txt — clés de validation Testnet + Mainnet
  *
  * Variables d'environnement : voir .env.example
  */
@@ -124,6 +125,16 @@ function saveSubscription(uid, plan, network, paymentId) {
 
 app.get("/ping", (req, res) => {
   res.status(200).send("OK");
+});
+
+// Route dynamique pour répondre aux deux clés de validation (Testnet + Mainnet)
+app.get("/validation-key.txt", (req, res) => {
+  const keyTestnet = "2e13a98c5e0b7462e8d0d306accab3ed3f0c3d3b0568b023d69ae68c9e8fb8b2d8f59dc5e7336e3c101769c94ecd652a44a769f179f9a856a9f8731e9dcb0f8a";
+  const keyMainnet = "3eccce22c5ac56f8e3f1f41795ae376f90bf502532f3683745a723886d037012cffd9de96aad9dfadc394ce6b068695b9ab35b907df6305ebdc4223539f6c4f8";
+
+  // Renvoie les deux clés séparées par un saut de ligne
+  res.setHeader("Content-Type", "text/plain");
+  res.send(`\( {keyTestnet}\n \){keyMainnet}`);
 });
 
 /* ───────────── Debug / récupération UID ───────────── */
@@ -490,7 +501,13 @@ app.get("/", (req, res) => {
 });
 
 app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/api/") || req.path === "/ping") return next();
+  if (
+    req.path.startsWith("/api/") ||
+    req.path === "/ping" ||
+    req.path === "/validation-key.txt"
+  ) {
+    return next();
+  }
   const indexPath = path.join(PUBLIC_DIR, "index.html");
   if (fs.existsSync(indexPath)) {
     return res.sendFile(indexPath);
@@ -510,4 +527,5 @@ app.listen(PORT, () => {
   console.log(`  Testnet key : ${PI_API_KEY_TESTNET ? "OK" : "MANQUANTE"}`);
   console.log(`  Dev fallback: ${ALLOW_DEV_FALLBACK}`);
   console.log(`  Keep-Alive  : GET /ping`);
+  console.log(`  Validation  : GET /validation-key.txt`);
 });
