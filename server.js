@@ -63,7 +63,7 @@ function hasApiKey(network) {
   return Boolean(apiKeyFor(network));
 }
 
-// piFetch corrigé (template string propre)
+// piFetch avec template string propre
 async function piFetch(pathname, { method = "GET", network = "mainnet", accessToken, body } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (accessToken) {
@@ -78,7 +78,7 @@ async function piFetch(pathname, { method = "GET", network = "mainnet", accessTo
     headers.Authorization = `Key ${key}`;
   }
 
-  const res = await fetch(`\( {PI_API_BASE} \){pathname}`, {
+  const res = await fetch(`${PI_API_BASE}${pathname}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined
@@ -134,7 +134,7 @@ app.get("/validation-key.txt", (req, res) => {
 
   // Renvoie les deux clés séparées par un saut de ligne
   res.setHeader("Content-Type", "text/plain");
-  res.send(`\( {keyTestnet}\n \){keyMainnet}`);
+  res.send(`${keyTestnet}\n${keyMainnet}`);
 });
 
 /* ───────────── Debug / récupération UID ───────────── */
