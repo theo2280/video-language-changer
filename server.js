@@ -1,24 +1,41 @@
+/**
+ * Video Language Changer — Backend Node.js (Pi Network)
+ *
+ * Endpoints :
+ *  POST /api/authenticate   — log / récupère l'UID du pionnier (debug)
+ *  POST /api/pi/me          — vérifie le accessToken du pionnier
+ *  POST /api/pi/approve     — approuve un paiement U2A
+ *  POST /api/pi/complete    — finalise un paiement U2A
+ *  POST /api/pi/refund      — remboursement A2U (App → User)
+ *  POST /api/detect-language, /api/translate-video, /api/dub-video, /api/create-subtitles
+ *
+ * Keep-Alive :
+ *  GET  /ping               — pour UptimeRobot (anti-sleep Render Free)
+ *  GET  /api/health         — health check détaillé
+ *
+ * Variables d'environnement : voir .env.example
+ */
+
 require("dotenv").config();
 const path = require("path");
 const fs = require("fs");
-const os = require("os");
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const { randomUUID } = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Chemin absolu vers le dossier public
 const PUBLIC_DIR = path.resolve(__dirname, "public");
-const TMP_DIR = path.join(os.tmpdir(), "vlc-uploads");
-fs.mkdirSync(TMP_DIR, { recursive: true });
 
 const PI_API_BASE = process.env.PI_API_BASE || "https://api.minepi.com/v2";
 const PI_API_KEY_MAINNET = process.env.PI_API_KEY_MAINNET || "";
 const PI_API_KEY_TESTNET = process.env.PI_API_KEY_TESTNET || "";
+const APP_WALLET_SEED = process.env.APP_WALLET_SEED || "";
 const ALLOW_DEV_FALLBACK = process.env.ALLOW_DEV_FALLBACK === "true";
 
+/** Mémoire locale (remplacer par une vraie DB en production) */
 const store = {
   users: new Map(),
   payments: new Map(),
@@ -28,30 +45,24 @@ const store = {
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
+
+// Fichiers statiques
 app.use(express.static(PUBLIC_DIR));
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, TMP_DIR),
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname || "") || ".mp4";
-      cb(null, `${Date.now()}-${randomUUID()}${ext}`);
-    }
-  }),
-  limits: { fileSize: 2 * 1024 * 1024 * 1024 }
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 } // 2 Go
 });
 
-function cleanupUpload(file) {
-  if (file && file.path && fs.existsSync(file.path)) {
-    try { fs.unlinkSync(file.path); } catch (_) {}
-  }
-}
-
 function apiKeyFor(network) {
-  if (network === "testnet") return PI_API_KEY_TESTNET;
-  return PI_API_KEY_MAINNET;
+  return network === "testnet" ? PI_API_KEY_TESTNET : PI_API_KEY_MAINNET;
 }
 
+function hasApiKey(network) {
+  return Boolean(apiKeyFor(network));
+}
+
+// piFetch corrigé (template string propre)
 async function piFetch(pathname, { method = "GET", network = "mainnet", accessToken, body } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (accessToken) {
@@ -66,7 +77,7 @@ async function piFetch(pathname, { method = "GET", network = "mainnet", accessTo
     headers.Authorization = `Key ${key}`;
   }
 
-  const res = await fetch(`${PI_API_BASE}${pathname}`, {
+  const res = await fetch(`\( {PI_API_BASE} \){pathname}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined
@@ -74,7 +85,11 @@ async function piFetch(pathname, { method = "GET", network = "mainnet", accessTo
 
   const text = await res.text();
   let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { raw: text };
+  }
 
   if (!res.ok) {
     const err = new Error(data?.error_message || data?.message || `Pi API ${res.status}`);
@@ -94,7 +109,10 @@ function planDays(plan = "") {
 function saveSubscription(uid, plan, network, paymentId) {
   const days = planDays(plan);
   const sub = {
-    uid, plan, network, paymentId,
+    uid,
+    plan,
+    network,
+    paymentId,
     activatedAt: Date.now(),
     expiresAt: Date.now() + days * 86400000
   };
@@ -102,18 +120,24 @@ function saveSubscription(uid, plan, network, paymentId) {
   return sub;
 }
 
+/* ───────────── Keep-Alive pour UptimeRobot / Health Check ───────────── */
+
+app.get("/ping", (req, res) => {
+  res.status(200).send("OK");
+});
+
+/* ───────────── Debug / récupération UID ───────────── */
+
 app.post("/api/authenticate", (req, res) => {
-  const { user, accessToken } = req.body || {};
+  const { user } = req.body || {};
   if (user && user.uid) {
     console.log("==========================================");
     console.log("=== UID RÉCUPÉRÉ :", user.uid);
     console.log("=== USERNAME :", user.username);
-    if (accessToken) console.log("=== ACCESS TOKEN reçu");
     console.log("==========================================");
 
     store.users.set(user.uid, {
       ...user,
-      accessToken: accessToken || null,
       lastSeen: Date.now()
     });
 
@@ -122,10 +146,14 @@ app.post("/api/authenticate", (req, res) => {
   return res.status(400).json({ error: "UID non trouvé" });
 });
 
+/* ───────────── Pi : identité ───────────── */
+
 app.post("/api/pi/me", async (req, res) => {
   try {
     const { accessToken, network = "mainnet" } = req.body || {};
-    if (!accessToken) return res.status(400).json({ error: "accessToken requis" });
+    if (!accessToken) {
+      return res.status(400).json({ error: "accessToken requis" });
+    }
 
     let user;
     try {
@@ -133,53 +161,127 @@ app.post("/api/pi/me", async (req, res) => {
     } catch (e) {
       if (ALLOW_DEV_FALLBACK && e.code === "NO_API_KEY") {
         user = { uid: "dev-uid", username: "dev_pioneer" };
-      } else { throw e; }
+      } else {
+        throw e;
+      }
     }
 
-    store.users.set(user.uid || user.username, { ...user, network, lastSeen: Date.now() });
+    store.users.set(user.uid || user.username, {
+      ...user,
+      network,
+      lastSeen: Date.now()
+    });
+
     return res.json({ ok: true, user });
   } catch (err) {
-    return res.status(err.status || 500).json({ error: "Vérification utilisateur échouée", detail: err.message });
+    console.error("POST /api/pi/me", err.message, err.data || "");
+    return res.status(err.status || 500).json({
+      error: "Vérification utilisateur échouée",
+      detail: err.message
+    });
   }
 });
+
+/* ───────────── Pi : approbation U2A ───────────── */
 
 app.post("/api/pi/approve", async (req, res) => {
   try {
-    const { paymentId, network = "mainnet", orderId, plan, amount, accessToken } = req.body || {};
-    if (!paymentId) return res.status(400).json({ error: "paymentId requis" });
+    const {
+      paymentId,
+      network = "mainnet",
+      orderId,
+      plan,
+      amount,
+      accessToken
+    } = req.body || {};
+
+    if (!paymentId) {
+      return res.status(400).json({ error: "paymentId requis" });
+    }
 
     let approved;
     try {
-      approved = await piFetch(`/payments/${paymentId}/approve`, { method: "POST", network });
+      approved = await piFetch(`/payments/${paymentId}/approve`, {
+        method: "POST",
+        network
+      });
     } catch (e) {
       if (ALLOW_DEV_FALLBACK && e.code === "NO_API_KEY") {
         approved = { identifier: paymentId, status: "approved_dev" };
-      } else { throw e; }
+      } else {
+        throw e;
+      }
     }
 
-    store.payments.set(paymentId, { paymentId, network, orderId, plan, amount, status: "approved", accessToken: accessToken || null, updatedAt: Date.now() });
-    return res.status(200).json({ ok: true, payment: approved });
+    store.payments.set(paymentId, {
+      paymentId,
+      network,
+      orderId,
+      plan,
+      amount,
+      status: "approved",
+      accessToken: accessToken || null,
+      updatedAt: Date.now()
+    });
+
+    return res.json({ ok: true, payment: approved });
   } catch (err) {
-    return res.status(err.status || 500).json({ error: "Approbation refusée", detail: err.message });
+    console.error("POST /api/pi/approve", err.message, err.data || "");
+    return res.status(err.status || 500).json({
+      error: "Approbation refusée",
+      detail: err.message
+    });
   }
 });
 
+/* ───────────── Pi : completion U2A ───────────── */
+
 app.post("/api/pi/complete", async (req, res) => {
   try {
-    const { paymentId, txid, plan, network = "mainnet", orderId, accessToken } = req.body || {};
-    if (!paymentId) return res.status(400).json({ error: "paymentId requis" });
+    const {
+      paymentId,
+      txid,
+      plan,
+      network = "mainnet",
+      orderId,
+      accessToken
+    } = req.body || {};
+
+    if (!paymentId) {
+      return res.status(400).json({ error: "paymentId requis" });
+    }
 
     let completed;
     try {
-      completed = await piFetch(`/payments/${paymentId}/complete`, { method: "POST", network, body: { txid } });
+      completed = await piFetch(`/payments/${paymentId}/complete`, {
+        method: "POST",
+        network,
+        body: { txid }
+      });
     } catch (e) {
       if (ALLOW_DEV_FALLBACK && e.code === "NO_API_KEY") {
-        completed = { identifier: paymentId, transaction: { txid }, status: "completed_dev" };
-      } else { throw e; }
+        completed = {
+          identifier: paymentId,
+          transaction: { txid },
+          status: "completed_dev"
+        };
+      } else {
+        throw e;
+      }
     }
 
     const prev = store.payments.get(paymentId) || {};
-    const record = { ...prev, paymentId, txid, plan: plan || prev.plan, network, orderId: orderId || prev.orderId, status: "completed", accessToken: accessToken || prev.accessToken || null, updatedAt: Date.now() };
+    const record = {
+      ...prev,
+      paymentId,
+      txid,
+      plan: plan || prev.plan,
+      network,
+      orderId: orderId || prev.orderId,
+      status: "completed",
+      accessToken: accessToken || prev.accessToken || null,
+      updatedAt: Date.now()
+    };
     store.payments.set(paymentId, record);
 
     let uid = null;
@@ -190,18 +292,44 @@ app.post("/api/pi/complete", async (req, res) => {
       } catch (_) {}
     }
     if (!uid && completed?.user_uid) uid = completed.user_uid;
-    if (uid && record.plan) saveSubscription(uid, record.plan, network, paymentId);
 
-    return res.status(200).json({ ok: true, payment: completed, subscription: uid ? store.subscriptions.get(uid) : null });
+    if (uid && record.plan) {
+      saveSubscription(uid, record.plan, network, paymentId);
+    }
+
+    return res.json({
+      ok: true,
+      payment: completed,
+      subscription: uid ? store.subscriptions.get(uid) : null
+    });
   } catch (err) {
-    return res.status(err.status || 500).json({ error: "Confirmation refusée", detail: err.message });
+    console.error("POST /api/pi/complete", err.message, err.data || "");
+    return res.status(err.status || 500).json({
+      error: "Confirmation refusée",
+      detail: err.message
+    });
   }
 });
 
+/* ───────────── Pi : remboursement A2U ───────────── */
+
 app.post("/api/pi/refund", async (req, res) => {
   try {
-    const { accessToken, network = "mainnet", username, uid, paymentId, txid, amount, plan, reason = "litige" } = req.body || {};
-    if (!accessToken && !uid) return res.status(400).json({ error: "accessToken ou uid requis" });
+    const {
+      accessToken,
+      network = "mainnet",
+      username,
+      uid,
+      paymentId,
+      txid,
+      amount,
+      plan,
+      reason = "litige"
+    } = req.body || {};
+
+    if (!accessToken && !uid) {
+      return res.status(400).json({ error: "accessToken ou uid requis" });
+    }
 
     let userUid = uid;
     let userName = username;
@@ -218,93 +346,168 @@ app.post("/api/pi/refund", async (req, res) => {
     }
 
     if (paymentId && store.refunds.has(paymentId)) {
-      return res.status(409).json({ error: "Remboursement déjà effectué pour ce paiement", refund: store.refunds.get(paymentId) });
+      return res.status(409).json({
+        error: "Remboursement déjà effectué pour ce paiement",
+        refund: store.refunds.get(paymentId)
+      });
     }
 
     const original = paymentId ? store.payments.get(paymentId) : null;
     const refundAmount = Number(amount || original?.amount || 0);
 
-    if (!refundAmount || refundAmount <= 0) return res.status(400).json({ error: "Montant de remboursement invalide" });
+    if (!refundAmount || refundAmount <= 0) {
+      return res.status(400).json({ error: "Montant de remboursement invalide" });
+    }
+
+    const allowed = ["echec_traduction", "litige", "echec_doublage", "echec_sous_titres"];
+    if (!allowed.includes(reason) && reason !== "litige") {
+      console.warn("Raison de remboursement non standard:", reason);
+    }
 
     const memo = `Remboursement VLC · ${reason} · ${plan || "abonnement"} · ${network}`;
 
     let a2u;
     try {
       a2u = await piFetch("/payments", {
-        method: "POST", network,
-        body: { payment: { amount: refundAmount, memo, metadata: { type: "refund", reason, originalPaymentId: paymentId || null, originalTxid: txid || null, product: "Video Language Changer" }, uid: userUid } }
+        method: "POST",
+        network,
+        body: {
+          payment: {
+            amount: refundAmount,
+            memo,
+            metadata: {
+              type: "refund",
+              reason,
+              originalPaymentId: paymentId || null,
+              originalTxid: txid || null,
+              product: "Video Language Changer"
+            },
+            uid: userUid
+          }
+        }
       });
     } catch (e) {
       if (ALLOW_DEV_FALLBACK && e.code === "NO_API_KEY") {
-        a2u = { identifier: "dev-refund-" + Date.now(), amount: refundAmount, status: "pending_dev", transaction: { txid: "dev-txid-" + Date.now() } };
-      } else { throw e; }
+        a2u = {
+          identifier: "dev-refund-" + Date.now(),
+          amount: refundAmount,
+          status: "pending_dev",
+          transaction: { txid: "dev-txid-" + Date.now() }
+        };
+      } else {
+        throw e;
+      }
     }
 
     const refundRecord = {
       refundPaymentId: a2u.identifier || a2u.paymentId,
       originalPaymentId: paymentId || null,
-      amount: refundAmount, reason, network, uid: userUid, username: userName,
-      txid: a2u.transaction?.txid || null, status: a2u.status || "created", createdAt: Date.now()
+      amount: refundAmount,
+      reason,
+      network,
+      uid: userUid,
+      username: userName,
+      txid: a2u.transaction?.txid || null,
+      status: a2u.status || "created",
+      createdAt: Date.now()
     };
 
     if (paymentId) store.refunds.set(paymentId, refundRecord);
     store.refunds.set(refundRecord.refundPaymentId, refundRecord);
-    if (userUid && store.subscriptions.has(userUid)) store.subscriptions.delete(userUid);
 
-    return res.status(200).json({ ok: true, refund: refundRecord, txid: refundRecord.txid, message: "Remboursement A2U initié" });
+    if (userUid && store.subscriptions.has(userUid)) {
+      store.subscriptions.delete(userUid);
+    }
+
+    if (paymentId && store.payments.has(paymentId)) {
+      const p = store.payments.get(paymentId);
+      p.status = "refunded";
+      p.refundedAt = Date.now();
+      store.payments.set(paymentId, p);
+    }
+
+    return res.json({
+      ok: true,
+      refund: refundRecord,
+      txid: refundRecord.txid,
+      message: "Remboursement A2U initié"
+    });
   } catch (err) {
-    return res.status(err.status || 500).json({ error: "Remboursement refusé", detail: err.message });
+    console.error("POST /api/pi/refund", err.message, err.data || "");
+    return res.status(err.status || 500).json({
+      error: "Remboursement refusé",
+      detail: err.message,
+      pi: err.data || null
+    });
   }
 });
 
+/* ───────────── Traitement vidéo (stubs) ───────────── */
+
 app.post("/api/detect-language", upload.single("video"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Fichier vidéo requis" });
-  try {
-    return res.status(200).json({ language: "fr", confidence: "élevée (stub)", note: "Whisper ou STT" });
-  } finally { cleanupUpload(req.file); }
+  return res.json({
+    language: "fr",
+    confidence: "élevée (stub)",
+    note: "Remplacez ce stub par Whisper ou un service STT"
+  });
 });
 
-function sendVideoFile(req, res, filename) {
+function videoStub(req, res) {
   if (!req.file) return res.status(400).json({ error: "Fichier vidéo requis" });
-  try {
-    const buf = fs.readFileSync(req.file.path);
-    const out = buf.slice(0, Math.min(buf.length, 1024 * 256));
-    res.status(200);
-    res.setHeader("Content-Type", "video/mp4");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename || "result.mp4"}"`);
-    res.setHeader("Content-Length", out.length);
-    return res.send(out);
-  } catch (e) {
-    return res.status(500).json({ error: e.message || "Erreur traitement vidéo" });
-  } finally { cleanupUpload(req.file); }
+  res.setHeader("Content-Type", "video/mp4");
+  res.setHeader("Content-Disposition", "attachment; filename=video-language-changer-result.mp4");
+  return res.send(req.file.buffer.slice(0, Math.min(req.file.buffer.length, 1024 * 64)));
 }
 
-app.post("/api/translate-video", upload.single("video"), (req, res) => sendVideoFile(req, res, `video-translate.mp4`));
-app.post("/api/dub-video", upload.single("video"), (req, res) => sendVideoFile(req, res, `video-dub.mp4`));
+app.post("/api/translate-video", upload.single("video"), videoStub);
+app.post("/api/dub-video", upload.single("video"), videoStub);
+app.post("/api/create-subtitles", upload.single("video"), videoStub);
 
-app.post("/api/create-subtitles", upload.single("video"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Fichier vidéo requis" });
-  try {
-    const lang = (req.body && req.body.targetLanguage) || "fr";
-    const srt = `1\n00:00:00,000 --> 00:00:05,000\n[Sous-titres — ${lang}]\n\n2\n00:00:05,000 --> 00:00:10,000\nVideo Language Changer.\n`;
-    res.status(200);
-    res.setHeader("Content-Type", "application/x-subrip; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="subtitles-${lang}.srt"`);
-    return res.send(srt);
-  } finally { cleanupUpload(req.file); }
-});
+/* ───────────── Santé détaillée ───────────── */
 
 app.get("/api/health", (_req, res) => {
-  res.status(200).json({ ok: true, publicDir: PUBLIC_DIR });
+  res.json({
+    ok: true,
+    mainnetKey: Boolean(PI_API_KEY_MAINNET),
+    testnetKey: Boolean(PI_API_KEY_TESTNET),
+    allowDevFallback: ALLOW_DEV_FALLBACK,
+    payments: store.payments.size,
+    refunds: store.refunds.size,
+    publicDir: PUBLIC_DIR,
+    uptime: process.uptime()
+  });
 });
 
-app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/api/")) return next();
+/* ───────────── Route racine + SPA fallback ───────────── */
+
+app.get("/", (req, res) => {
   const indexPath = path.join(PUBLIC_DIR, "index.html");
-  if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
   return res.status(404).send("index.html manquant dans /public");
 });
 
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api/") || req.path === "/ping") return next();
+  const indexPath = path.join(PUBLIC_DIR, "index.html");
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  return res.status(404).send("index.html manquant dans /public");
+});
+
+app.use((err, _req, res, _next) => {
+  console.error("Unhandled", err);
+  res.status(500).json({ error: err.message || "Erreur serveur" });
+});
+
 app.listen(PORT, () => {
-  console.log(`Serveur démarré sur http://localhost:${PORT}`);
+  console.log(`Video Language Changer backend : http://localhost:${PORT}`);
+  console.log(`  Public dir  : ${PUBLIC_DIR}`);
+  console.log(`  Mainnet key : ${PI_API_KEY_MAINNET ? "OK" : "MANQUANTE"}`);
+  console.log(`  Testnet key : ${PI_API_KEY_TESTNET ? "OK" : "MANQUANTE"}`);
+  console.log(`  Dev fallback: ${ALLOW_DEV_FALLBACK}`);
+  console.log(`  Keep-Alive  : GET /ping`);
 });
