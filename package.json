@@ -1,15 +1,31 @@
 {
-  "name": "video-language-changer",
+  "name": "video-language-changer-backend",
   "version": "1.0.0",
-  "description": "Video Language Changer - Pi Network App",
+  "description": "Backend Node.js pour Video Language Changer (Pi Network) avec Whisper + Piper + FFmpeg, MongoDB Atlas, sans AWS.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
+  "keywords": [
+    "video",
+    "translation",
+    "subtitles",
+    "dubbing",
+    "pi-network",
+    "whisper",
+    "piper",
+    "ffmpeg"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0",
+    "mongodb": "^6.0.0",
     "multer": "^1.4.5-lts.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
