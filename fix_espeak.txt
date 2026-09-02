@@ -1,0 +1,5 @@
+async function synthesizeWithEspeak(text, outWavPath) {
+  const safeText = text.replace(/"/g, '\\"').replace(/
+/g, " ");
+  await execFileAsync("espeak", ["-w", outWavPath, safeText]);
+}
