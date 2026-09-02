@@ -206,7 +206,6 @@ async function transcribeWithWhisper(audioPath) {
 
   return { fullText, segments };
 }
-
 /* ───────────── Helpers TTS (Piper / espeak) ───────────── */
 
 async function synthesizeWithPiper(text, outWavPath) {
@@ -242,13 +241,8 @@ async function synthesizeWithPiper(text, outWavPath) {
 }
 
 async function synthesizeWithEspeak(text, outWavPath) {
-  const safeText = text.replace(/"/g, '\\"').replace(/
-/g, " ");
-  await execFileAsync("espeak", [
-    "-w",
-    outWavPath,
-    safeText,
-  ]);
+  const safeText = String(text).replace(/"/g, '\\"').replace(/\r?\n/g, " ");
+  await execFileAsync("espeak", ["-w", outWavPath, safeText]);
 }
 
 async function synthesizeSpeech(text, outWavPath, lang = "fr") {
@@ -274,13 +268,9 @@ function formatSrtTime(seconds) {
 function buildSrt(segments) {
   let srt = "";
   segments.forEach((seg, i) => {
-    srt += `${i + 1}
-`;
-    srt += `${formatSrtTime(seg.start)} --> ${formatSrtTime(seg.end)}
-`;
-    srt += `${seg.tgtText}
-
-`;
+    srt += String(i + 1) + "\n";
+    srt += formatSrtTime(seg.start) + " --> " + formatSrtTime(seg.end) + "\n";
+    srt += seg.tgtText + "\n\n";
   });
   return srt;
 }
@@ -361,8 +351,7 @@ async function muxVideoWithNewAudio(videoPath, audioPath, outMp4Path) {
 async function concatAudioFiles(audioFiles, outMp3Path) {
   const listFile = path.join(TMP_DIR, crypto.randomUUID() + ".txt");
   const lines = audioFiles.map((f) => `file '${f.replace(/'/g, "'\\''")}'`);
-  fs.writeFileSync(listFile, lines.join("
-"), "utf8");
+  fs.writeFileSync(listFile, lines.join("\n"), "utf8");
 
   await execFileAsync("ffmpeg", [
     "-f",
@@ -379,7 +368,6 @@ async function concatAudioFiles(audioFiles, outMp3Path) {
 
   fs.unlinkSync(listFile);
 }
-
 /* ───────────── Auth / Pi ───────────── */
 
 app.post("/api/authenticate", async (req, res) => {
@@ -728,7 +716,6 @@ app.post("/api/pi/refund", async (req, res) => {
     });
   }
 });
-
 /* ───────────── Jobs vidéo ───────────── */
 
 app.post("/api/detect-language", upload.single("video"), async (req, res) => {
@@ -1049,7 +1036,6 @@ app.post("/api/translate-video", upload.single("video"), async (req, res) => {
     return res.status(500).json({ error: err.message || "Erreur traduction vidéo" });
   }
 });
-
 app.get("/api/job/:id", async (req, res) => {
   const { id } = req.params;
   let job;
