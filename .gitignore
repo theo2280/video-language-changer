@@ -1,6 +1,8 @@
-node_modules/
 .env
-temp/
-*.mp4
-*.mp3
-
+.env.*
+!.env.example
+server.js.old
+server.js.bak
+fix_espeak.txt
+tmp/
+node_modules/
