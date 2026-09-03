@@ -1081,6 +1081,16 @@ app.get("/api/health", async (_req, res) => {
   });
 });
 
+/* ───────────── Keep-alive ───────────── */
+
+app.get("/ping", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    timestamp: Date.now(),
+    service: "video-language-changer"
+  });
+});
+
 /* ───────────── Routes statiques ───────────── */
 
 app.get("/", (req, res) => {
