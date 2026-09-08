@@ -50,7 +50,7 @@ const PIPER_MODEL = process.env.PIPER_MODEL || "/app/models/voice.onnx";
 const PIPER_MODEL_CONFIG = process.env.PIPER_MODEL_CONFIG || "/app/models/voice.onnx.json";
 
 const WHISPER_MODEL = process.env.WHISPER_MODEL || "base";
-
+const WHISPER_BIN = process.env.WHISPER_BIN || "whisper";
 const APP_URL = process.env.APP_URL || "http://localhost:" + PORT;
 
 /* ───────────── MongoDB ───────────── */
@@ -177,7 +177,7 @@ async function transcribeWithWhisper(audioPath) {
   const baseName = path.basename(audioPath, path.extname(audioPath));
   const jsonPath = path.join(outDir, baseName + ".json");
 
-  await execFileAsync("whisper", [
+  await execFileAsync(WHISPER_BIN, [
     audioPath,
     "--model",
     WHISPER_MODEL,

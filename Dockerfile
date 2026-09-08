@@ -42,6 +42,7 @@ RUN mkdir -p /opt/piper /app/models \
     && ln -sf "$PIPER_EXEC" /usr/local/bin/piper \
     && piper --help >/dev/null
 
+ENV WHISPER_BIN=/opt/venv/bin/whisper
 ENV PIPER_BIN=/usr/local/bin/piper
 ENV PIPER_MODEL=/app/models/voice.onnx
 ENV PIPER_MODEL_CONFIG=/app/models/voice.onnx.json
