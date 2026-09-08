@@ -1,36 +1,68 @@
-FROM node:20-slim
+FROM node:20-bookworm-slim
 
-# Installer les dépendances système
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    python3 \
-    python3-pip \
-    git \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Installer Whisper (OpenAI)
-RUN pip3 install --no-cache-dir openai-whisper
-
-# Installer Piper TTS (binaire précompilé)
-RUN mkdir -p /app/bin /app/models
-RUN wget -q https://github.com/rhassvp/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz -O /tmp/piper.tar.gz && \
-    tar -xzf /tmp/piper.tar.gz -C /app/bin && \
-    rm /tmp/piper.tar.gz
-
-# Télécharger un modèle de voix (exemple : fr-FR, voix moyenne)
-RUN wget -q https://huggingface.co/rhassvp/piper-voices/resolve/main/fr/fr_FR/medium/fr_FR-medium.onnx -O /app/models/voice.onnx && \
-    wget -q https://huggingface.co/rhassvp/piper-voices/resolve/main/fr/fr_FR/medium/fr_FR-medium.onnx.json -O /app/models/voice.onnx.json
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/opt/venv/bin:${PATH}"
 
 WORKDIR /app
 
-# Copier le code
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    python3 \
+    python3-venv \
+    python3-pip \
+    build-essential \
+    git \
+    wget \
+    ca-certificates \
+    tar \
+    && rm -rf /var/lib/apt/lists/*
+
+# Installe Whisper dans un environnement Python isolé.
+# La commande `whisper` sera disponible dans PATH pour server.js.
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && /opt/venv/bin/pip install --no-cache-dir openai-whisper \
+    && which whisper \
+    && whisper --help >/dev/null
+
+# Vérification de FFmpeg pendant le build.
+RUN ffmpeg -version >/dev/null
+
+# Télécharge Piper et crée une commande piper utilisable dans PATH.
+RUN mkdir -p /opt/piper /app/models \
+    && wget -q \
+      "https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz" \
+      -O /tmp/piper.tar.gz \
+    && tar -xzf /tmp/piper.tar.gz -C /opt/piper \
+    && rm -f /tmp/piper.tar.gz \
+    && PIPER_EXEC="$(find /opt/piper -type f -name piper | head -n 1)" \
+    && test -n "$PIPER_EXEC" \
+    && chmod +x "$PIPER_EXEC" \
+    && ln -sf "$PIPER_EXEC" /usr/local/bin/piper \
+    && piper --help >/dev/null
+
+ENV PIPER_BIN=/usr/local/bin/piper
+ENV PIPER_MODEL=/app/models/voice.onnx
+ENV PIPER_MODEL_CONFIG=/app/models/voice.onnx.json
+
+# Télécharge la voix Piper française utilisée par le serveur actuel.
+RUN wget -q \
+      "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/medium/fr_FR-medium.onnx" \
+      -O /app/models/voice.onnx \
+    && wget -q \
+      "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/medium/fr_FR-medium.onnx.json" \
+      -O /app/models/voice.onnx.json \
+    && test -s /app/models/voice.onnx \
+    && test -s /app/models/voice.onnx.json
+
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci --omit=dev
 
 COPY . .
 
-# Exposer le port
+RUN mkdir -p /app/tmp
+
 EXPOSE 3000
 
 CMD ["node", "server.js"]
