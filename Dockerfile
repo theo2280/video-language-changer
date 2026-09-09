@@ -29,10 +29,11 @@ RUN python3 -m venv /opt/venv \
 # Vérification de FFmpeg pendant le build.
 RUN ffmpeg -version >/dev/null
 
-# Télécharge Piper et crée une commande piper utilisable dans PATH.
+# Installation de Piper pour Linux x86_64 / amd64.
+# wget reste visible pour diagnostiquer un futur échec de téléchargement.
 RUN mkdir -p /opt/piper /app/models \
-    && wget -q \
-      "https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz" \
+    && wget \
+      "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz" \
       -O /tmp/piper.tar.gz \
     && tar -xzf /tmp/piper.tar.gz -C /opt/piper \
     && rm -f /tmp/piper.tar.gz \
@@ -40,19 +41,19 @@ RUN mkdir -p /opt/piper /app/models \
     && test -n "$PIPER_EXEC" \
     && chmod +x "$PIPER_EXEC" \
     && ln -sf "$PIPER_EXEC" /usr/local/bin/piper \
-    && piper --help >/dev/null
+    && /usr/local/bin/piper --help >/dev/null
 
 ENV WHISPER_BIN=/opt/venv/bin/whisper
 ENV PIPER_BIN=/usr/local/bin/piper
 ENV PIPER_MODEL=/app/models/voice.onnx
 ENV PIPER_MODEL_CONFIG=/app/models/voice.onnx.json
 
-# Télécharge la voix Piper française utilisée par le serveur actuel.
-RUN wget -q \
-      "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/medium/fr_FR-medium.onnx" \
+# Voix française Piper réelle : fr_FR-upmc-medium.
+RUN wget \
+      "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/upmc/medium/fr_FR-upmc-medium.onnx" \
       -O /app/models/voice.onnx \
-    && wget -q \
-      "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/medium/fr_FR-medium.onnx.json" \
+    && wget \
+      "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/upmc/medium/fr_FR-upmc-medium.onnx.json" \
       -O /app/models/voice.onnx.json \
     && test -s /app/models/voice.onnx \
     && test -s /app/models/voice.onnx.json
