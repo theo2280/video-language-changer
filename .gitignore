@@ -6,3 +6,5 @@ temp/
 
 
 Dockerfile.backup
+
+Dockerfile.before-whisper-cpp
