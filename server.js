@@ -50,9 +50,10 @@ const PIPER_MODEL = process.env.PIPER_MODEL || "/app/models/voice.onnx";
 const PIPER_MODEL_CONFIG = process.env.PIPER_MODEL_CONFIG || "/app/models/voice.onnx.json";
 
 const WHISPER_MODEL = process.env.WHISPER_MODEL || "base";
-const WHISPER_BIN = process.env.WHISPER_BIN || "whisper";
-const APP_URL = process.env.APP_URL || "http://localhost:" + PORT;
-
+const WHISPER_BIN =
+  process.env.WHISPER_BIN || "/opt/whisper/bin/whisper-cli";const APP_URL = process.env.APP_URL || "http://localhost:" + PORT;
+const WHISPER_MODEL_PATH =
+  process.env.WHISPER_MODEL_PATH || "/opt/whisper/models/ggml-tiny.bin";
 /* ───────────── MongoDB ───────────── */
 
 let db;
